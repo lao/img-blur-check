@@ -1,0 +1,68 @@
+"""
+Core functionality for blur detection in images.
+"""
+import cv2
+import numpy as np
+from typing import Tuple
+from .image_utils import load_image_from_url, ensure_gray_scale
+
+class BlurDetector:
+    """A class to detect blur in images using the Variance of Laplacian method."""
+    
+    def __init__(self, threshold: float = 130.0):
+        """
+        Initialize the blur detector.
+        
+        Args:
+            threshold (float): The threshold below which an image is considered blurry.
+                             Default is 130.0.
+        """
+        self.threshold = threshold
+
+    def compute_blur_metrics(self, image: np.ndarray) -> Tuple[bool, float, float]:
+        """
+        Compute the blur metrics of an image.
+        
+        Args:
+            image (np.ndarray): Input image array
+            
+        Returns:
+            Tuple[bool, float, float]: (is_blurry, blur_score, blur_percentage)
+        """
+        gray = ensure_gray_scale(image)
+        score = cv2.Laplacian(gray, cv2.CV_64F).var()
+        
+        # Calculate blur percentage (inverted score normalized to 0-100%)
+        max_score = self.threshold * 2  # Define a maximum reference score
+        blur_percentage = max(0, min(100, (1 - (score / max_score)) * 100))
+        
+        return score < self.threshold, score, blur_percentage
+
+    def process_image(self, image_path: str) -> dict:
+        """
+        Process an image file or URL and determine if it's blurry.
+        
+        Args:
+            image_path (str): Path to image file or URL
+            
+        Returns:
+            dict: Contains blur detection results
+        """
+        # Load image (handles both local paths and URLs)
+        if image_path.startswith(('http://', 'https://')):
+            image = load_image_from_url(image_path)
+        else:
+            image = cv2.imread(image_path)
+            
+        if image is None:
+            raise ValueError(f"Could not load image from {image_path}")
+
+        # Compute blur metrics
+        is_blurry, score, blur_percentage = self.compute_blur_metrics(image)
+        
+        return {
+            'path': image_path,
+            'is_blurry': is_blurry,
+            'blur_score': score,
+            'blur_percentage': blur_percentage
+        }
